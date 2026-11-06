@@ -11,13 +11,15 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
+LOCAL = "http://127.0.0.1:8000"
+
 from flux_complexity.norms import DEFAULT_THRESHOLDS  # noqa: E402
 from flux_complexity.web.app import STATIC_DIR, create_app  # noqa: E402
 
 
 @pytest.fixture
 def client(tmp_path):
-    with TestClient(create_app(tmp_path / "t.sqlite3", load_parser=False)) as c:
+    with TestClient(create_app(tmp_path / "t.sqlite3", load_parser=False), base_url=LOCAL) as c:
         yield c
 
 

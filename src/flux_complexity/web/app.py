@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -82,6 +82,32 @@ def _check_thresholds(th: dict | None) -> dict | None:
 
 MAX_MATRIX_CELLS = 64
 
+# The server has no login because it only listens on 127.0.0.1. Two browser attacks still
+# reach such a server, so every request is checked:
+# - DNS rebinding: a web page whose domain is re-pointed to 127.0.0.1 becomes "same origin"
+#   and could read or delete the corpora. Its requests carry its own name in Host.
+# - cross-site requests: any page may send a form POST (e.g. a corpus import) to
+#   127.0.0.1; the browser then sends that page's Origin.
+LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "[::1]"})
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _hostname(netloc: str) -> str:
+    """« 127.0.0.1:8000 » -> « 127.0.0.1 », « [::1]:8000 » -> « [::1] »."""
+    netloc = netloc.strip().lower()
+    if netloc.startswith("["):
+        return netloc[: netloc.find("]") + 1]
+    return netloc.split(":", 1)[0]
+
+
+def _local_request(method: str, host: str | None, origin: str | None) -> bool:
+    if host is None or _hostname(host) not in LOCAL_HOSTS:
+        return False
+    if method in SAFE_METHODS or origin is None:  # no Origin: not sent by a web page (curl, scripts)
+        return True
+    scheme, sep, rest = origin.partition("://")
+    return sep == "://" and scheme in ("http", "https") and _hostname(rest) in LOCAL_HOSTS
+
 
 def _parse_matrix(spec: str | None) -> list[tuple[int, int]] | None:
     """« 1,1 2,2 3,3 » -> [(1, 1), (2, 2), (3, 3)] (row = left word, col = right word)."""
@@ -89,7 +115,7 @@ def _parse_matrix(spec: str | None) -> list[tuple[int, int]] | None:
         return None
     cells = []
     for item in spec.replace(";", " ").split():
-        m = re.fullmatch(r"(\d+),(\d+)", item)
+        m = re.fullmatch(r"(\d{1,3}),(\d{1,3})", item)
         if not m or int(m[1]) < 1 or int(m[2]) < 1:
             raise HTTPException(422, f"Case de matrice invalide : « {item} » (format attendu : ligne,colonne).")
         cells.append((int(m[1]), int(m[2])))
@@ -225,7 +251,7 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
         max_weight: int | None = Query(None, ge=1, description="Poids de la position ≤ cette valeur"),
         min_size: int | None = Query(None, ge=1, description="Taille de la position ≥ cette valeur"),
         max_size: int | None = Query(None, ge=1, description="Taille de la position ≤ cette valeur"),
-        deprel: str | None = Query(None, description="Relation dans la même position, ex. acl (inclut acl:relcl)"),
+        deprel: str | None = Query(None, max_length=40, description="Relation dans la même position, ex. acl (inclut acl:relcl)"),
         text: str | None = Query(None, max_length=200, description="La phrase contient ce texte"),
         matrix: str | None = Query(None, description="Cases de la matrice de flux « ligne,colonne », ex. « 1,1 2,2 3,3 »"),
         matrix_mode: Literal["exact", "contains"] = Query("exact", description="exact : la matrice est exactement ces cases ; contains : au moins ces cases"),
@@ -280,6 +306,13 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
                                  headers={"Content-Disposition": f'attachment; filename="{filename}"'})  # fmt: skip
 
     # ------------------------------------------------------------- pages
+    @app.middleware("http")
+    async def local_only(request, call_next):
+        if not _local_request(request.method, request.headers.get("host"), request.headers.get("origin")):
+            return PlainTextResponse("Requête refusée : ce serveur n'accepte que les pages servies par lui-même "
+                                     "(http://127.0.0.1).", status_code=403)  # fmt: skip
+        return await call_next(request)
+
     @app.middleware("http")
     async def revalidate_pages(request, call_next):
         # the page is small and local: always revalidate, so an upgrade never shows stale JS

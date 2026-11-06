@@ -9,6 +9,8 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
+LOCAL = "http://127.0.0.1:8000"
+
 from flux_complexity.core import parse_conllu  # noqa: E402
 from flux_complexity.parse import ParserInfo  # noqa: E402
 from flux_complexity.web.app import create_app  # noqa: E402
@@ -49,7 +51,7 @@ def wait_ready(client, timeout=5):
 
 @pytest.fixture
 def client(tmp_path):
-    with TestClient(create_app(tmp_path / "t.sqlite3", parser=FakeParser())) as c:
+    with TestClient(create_app(tmp_path / "t.sqlite3", parser=FakeParser()), base_url=LOCAL) as c:
         assert wait_ready(c)["parser"] == "ready"
         yield c
 
@@ -89,7 +91,7 @@ def test_analyze_text_errors_are_french(client):
 
 
 def test_parser_unavailable(tmp_path):
-    with TestClient(create_app(tmp_path / "t.sqlite3", parser=BrokenParser())) as c:
+    with TestClient(create_app(tmp_path / "t.sqlite3", parser=BrokenParser()), base_url=LOCAL) as c:
         h = wait_ready(c)
         assert h["parser"] == "unavailable" and "no model" in h["parser_error"]
         r = c.post("/api/analyze/text", json={"text": "Bonjour."})
@@ -97,7 +99,7 @@ def test_parser_unavailable(tmp_path):
 
 
 def test_no_parser_mode_still_serves_conllu(tmp_path):
-    with TestClient(create_app(tmp_path / "t.sqlite3", load_parser=False)) as c:
+    with TestClient(create_app(tmp_path / "t.sqlite3", load_parser=False), base_url=LOCAL) as c:
         assert c.get("/api/health").json()["parser"] == "disabled"
         files = {"file": ("x.conllu", CORPUS.encode(), "text/plain")}
         r = c.post("/api/analyze/conllu", files=files, data={"scheme": "SUD"})
@@ -208,3 +210,28 @@ def test_search_filters_and_matrix_shape(client):
 
     r = client.get(f"/api/corpora/{cid}/sentences", params={"matrix": "1;x"})
     assert r.status_code == 422 and "Case de matrice invalide" in r.json()["detail"]
+
+
+def test_only_local_pages_can_use_the_server(client):
+    files = {"file": ("x.conllu", CORPUS.encode(), "text/plain")}
+    # DNS rebinding: another site's name in Host, even for reads
+    assert client.get("/api/corpora", headers={"Host": "evil.example:8000"}).status_code == 403
+    assert client.get("/", headers={"Host": "evil.example"}).status_code == 403
+    # cross-site form POST / DELETE from another page
+    r = client.post("/api/corpora", files=files, data={"scheme": "UD"}, headers={"Origin": "https://evil.example"})
+    assert r.status_code == 403 and client.get("/api/corpora").json() == []
+    assert client.post("/api/corpora", files=files, data={"scheme": "UD"}, headers={"Origin": "null"}).status_code == 403
+    # the page itself, localhost and [::1], and clients without Origin (curl, scripts) are fine
+    for host, origin in [("127.0.0.1:8000", "http://127.0.0.1:8000"), ("localhost:8080", "http://localhost:8080"),
+                         ("[::1]:8000", "http://[::1]:8000"), ("127.0.0.1:8000", None)]:
+        headers = {"Host": host} | ({"Origin": origin} if origin else {})
+        r = client.post("/api/corpora", files=files, data={"scheme": "UD"}, headers=headers)
+        assert r.status_code == 201, (host, origin)
+        assert client.delete(f"/api/corpora/{r.json()['id']}", headers=headers).status_code == 204
+
+
+def test_matrix_and_deprel_bounds(client):
+    files = {"file": ("x.conllu", CORPUS.encode(), "text/plain")}
+    cid = client.post("/api/corpora", files=files, data={"scheme": "UD"}).json()["id"]
+    assert client.get(f"/api/corpora/{cid}/sentences", params={"matrix": "1,99999999999999999999"}).status_code == 422
+    assert client.get(f"/api/corpora/{cid}/sentences", params={"deprel": "x" * 41}).status_code == 422

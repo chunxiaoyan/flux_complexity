@@ -1,0 +1,46 @@
+import csv
+
+from flux_complexity.cli import main
+
+from .conftest import make_conllu
+
+EX1 = [
+    (1, "Le", "DET", 2, "det"),
+    (2, "chat", "NOUN", 6, "nsubj"),
+    (3, "de", "ADP", 5, "case"),
+    (4, "ma", "DET", 5, "det"),
+    (5, "sœur", "NOUN", 2, "nmod"),
+    (6, "dort", "VERB", 0, "root"),
+    (7, ".", "PUNCT", 6, "punct"),
+]
+
+
+def test_compute_writes_positions_and_sentences(tmp_path, capsys):
+    f = tmp_path / "ex.conllu"
+    f.write_text(make_conllu(EX1, "ex1"), encoding="utf-8")
+    pos, sen = tmp_path / "p.csv", tmp_path / "s.csv"
+    assert main(["compute", str(f), "--scheme", "UD", "-o", str(pos), "--sentences", str(sen)]) == 0
+
+    rows = list(csv.DictReader(open(pos, encoding="utf-8-sig")))
+    assert [(r["sent_id"], r["position"], r["size"], r["weight"]) for r in rows] == [
+        ("ex1", "1", "1", "1"), ("ex1", "2", "2", "1"), ("ex1", "3", "3", "2"),
+        ("ex1", "4", "4", "2"), ("ex1", "5", "1", "1"),
+    ]  # fmt: skip
+    assert (rows[3]["left_form"], rows[3]["right_form"]) == ("ma", "sœur")
+    assert rows[0]["deps"] == "chat->Le:det"
+
+    (s,) = list(csv.DictReader(open(sen, encoding="utf-8-sig")))
+    assert (s["max_size"], s["mean_size"], s["max_weight"], s["mean_weight"]) == ("4", "2.2", "2", "1.4")
+    assert "P(>=2)=0.4000" in capsys.readouterr().out
+
+
+def test_parataxis_modes(tmp_path):
+    rows = [(1, "a", "VERB", 0, "root"), (2, "b", "VERB", 1, "parataxis:insert")]
+    f = tmp_path / "p.conllu"
+    f.write_text(make_conllu(rows), encoding="utf-8")
+    counts = {}
+    for mode in ("all", "exact", "keep"):
+        out = tmp_path / f"{mode}.csv"
+        main(["compute", str(f), "--scheme", "UD", "-o", str(out), "--parataxis", mode])
+        counts[mode] = len(list(csv.DictReader(open(out, encoding="utf-8-sig"))))
+    assert counts == {"all": 0, "exact": 1, "keep": 1}

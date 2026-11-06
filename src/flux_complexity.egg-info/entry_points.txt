@@ -1,0 +1,2 @@
+[console_scripts]
+fluxcalc = flux_complexity.cli:main

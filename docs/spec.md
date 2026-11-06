@@ -44,7 +44,12 @@
 ### 3.2 切断 parataxis
 - DEPREL 的主类型（`:` 之前的部分）为 `parataxis` 的依存（含 `parataxis:*` 子类型）**整条移除**，不计入任何 flux。
 - 被切断的从属词仍留在句中，词序与编号不变。
-- 注：旧代码 `update_parataxis_gov` 的源码已丢失，本口径可能与旧结果有细微差异；回归测试时会单独标注。
+- **与旧结果的关系（阶段 1 回归测试发现）**：旧代码 `update_parataxis_gov` 的源码虽然丢失，但可以确定它**只切断标签恰好为 `parataxis` 的依存，保留 `parataxis:insert` 等子类型**。按这个规则计算，8 个 `experimental_data_*.xlsx` 被逐行完全复现。
+- 因此提供三种模式（CLI 参数 `--parataxis`）：
+  - `all`：切断 `parataxis` 及全部子类型。**本规格的默认值。**
+  - `exact`：只切断不带子类型的 `parataxis`。与旧结果一致。
+  - `keep`：不切断。
+- ⚠️ 默认值用 `all` 还是 `exact`，待作者最终确认。
 
 ## 4. 参与 flux 的依存
 

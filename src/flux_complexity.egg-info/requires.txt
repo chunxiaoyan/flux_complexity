@@ -1,0 +1,5 @@
+conllu>=4.5
+
+[dev]
+pytest>=8
+networkx>=3

@@ -127,6 +127,8 @@ async function openCorpus(id) {
     `chaîne de traitement : ${c.pipeline}` + (c.source_file ? ` · fichier : ${c.source_file}` : "");
   distTable($("#dist-size"), c.size_counts);
   distTable($("#dist-weight"), c.weight_counts);
+  await fillCompareNorms(c.scheme);
+  await renderCharts();
   const dl = $("#deprels");
   dl.textContent = "";
   for (const d of c.deprels) { const o = el("option"); o.value = d; dl.append(o); }
@@ -168,6 +170,68 @@ function distTable(table, counts) {
     tbody.append(tr);
   }
   table.append(thead, tbody);
+}
+
+// ------------------------------------------------------------------ charts
+const normCache = new Map();
+let normList = null;
+const normLabel = (name) => name.replace(/^(S?UD)_French-(.*)$/, (_, s, t) => `${t === "merged" ? "les trois corpus" : t} (${s})`);
+
+async function fillCompareNorms(scheme) {
+  if (!normList) normList = await api("/api/norms");
+  const sel = $("#cmp-norm");
+  const keep = sel.value;
+  sel.textContent = "";
+  for (const n of normList.filter((x) => x.scheme === scheme)) {
+    const o = el("option", null, normLabel(n.name));
+    o.value = n.name;
+    if (n.default) o.selected = true;
+    sel.append(o);
+  }
+  if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+}
+
+async function renderCharts() {
+  const c = state.corpus;
+  const name = $("#cmp-norm").value;
+  if (!normCache.has(name)) normCache.set(name, await api(`/api/norms/${encodeURIComponent(name)}`));
+  const norm = normCache.get(name);
+  const series = (metric) => [
+    { name: `« ${c.name} »`, counts: c[`${metric}_counts`], cls: "s1" },
+    { name: normLabel(norm.name), counts: norm.metrics[metric].counts, cls: "s2" },
+  ];
+  const legend = $("#chart-legend");
+  legend.textContent = "";
+  for (const s of series("size")) {
+    const item = el("span", "legend-item");
+    item.append(el("span", "swatch " + s.cls), document.createTextNode(s.name));
+    legend.append(item);
+  }
+  for (const metric of ["size", "weight"]) {
+    const ser = series(metric);
+    columnChart($(`#chart-${metric}`), ser, {
+      onEnter: (i, data, anchor) => chartTooltip(anchor, metric, ser, data, i),
+      onLeave: () => { $("#tooltip").hidden = true; },
+    });
+  }
+}
+
+function chartTooltip(anchor, metric, ser, data, i) {
+  const tt = $("#tooltip");
+  tt.textContent = "";
+  tt.append(el("div", "tt-head", `${metric === "size" ? "Taille" : "Poids"} ${data[0][i].label}`));
+  ser.forEach((s, j) => {
+    const r = data[j][i];
+    const d = el("div", "tt-row");
+    d.append(el("span", "swatch " + s.cls), document.createTextNode(`${s.name} : `), el("b", null, fmtShare(r.share)));
+    d.append(document.createTextNode(` (${plural(r.n, "position")}) · P(X ≥ ${r.k}) = ${fmtShare(r.tail)}`));
+    tt.append(d);
+  });
+  tt.hidden = false;
+  const b = anchor.getBoundingClientRect();
+  const x = Math.min(window.innerWidth - tt.offsetWidth - 8, Math.max(8, b.left + b.width / 2 - tt.offsetWidth / 2));
+  tt.style.left = x + "px";
+  tt.style.top = Math.max(8, b.top - tt.offsetHeight - 8) + "px";
 }
 
 // ------------------------------------------------------------- matrix grid
@@ -413,6 +477,7 @@ async function init() {
   $("#prev").addEventListener("click", () => search(Math.max(0, state.offset - PAGE)));
   $("#next").addEventListener("click", () => search(state.offset + PAGE));
   for (const r of document.querySelectorAll('input[name="d-metric"]')) r.addEventListener("change", renderDetail);
+  $("#cmp-norm").addEventListener("change", () => renderCharts().catch((err) => setStatus("#corpus-status", err.message, true)));
   try {
     const h = await api("/api/health");
     $("#footer").textContent = `flux_complexity ${h.version}`;

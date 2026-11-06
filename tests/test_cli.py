@@ -1,4 +1,5 @@
 import csv
+import pytest
 
 from flux_complexity.cli import main
 
@@ -47,3 +48,32 @@ def test_parataxis_modes(tmp_path):
     default = tmp_path / "default.csv"
     main(["compute", str(f), "--scheme", "UD", "-o", str(default)])
     assert len(list(csv.DictReader(open(default, encoding="utf-8-sig")))) == counts["exact"]
+
+
+def test_serve_opens_the_page_unless_told_not_to(monkeypatch, tmp_path):
+    pytest.importorskip("uvicorn")
+    import threading
+    import uvicorn
+    import webbrowser
+
+    from flux_complexity import cli
+
+    opened, timers = [], []
+
+    class ImmediateTimer:
+        def __init__(self, delay, fn, args=()):
+            timers.append(delay)
+            self.fn, self.args = fn, args
+
+        def start(self):
+            self.fn(*self.args)
+
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: opened.append(("run", kw["host"], kw["port"])))
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(("open", url)))
+    monkeypatch.setattr(threading, "Timer", ImmediateTimer)
+    db = str(tmp_path / "t.sqlite3")
+    assert cli.main(["serve", "--no-parser", "--port", "8123", "--db", db]) == 0
+    assert ("open", "http://127.0.0.1:8123/") in opened and ("run", "127.0.0.1", 8123) in opened
+    opened.clear()
+    assert cli.main(["serve", "--no-parser", "--no-browser", "--db", db]) == 0
+    assert [o[0] for o in opened] == ["run"]

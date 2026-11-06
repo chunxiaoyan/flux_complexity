@@ -137,6 +137,10 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--port", type=int, default=8000)
     w.add_argument("--db", type=Path, default=DEFAULT_DB, help=f"SQLite database (default {DEFAULT_DB})")
     w.add_argument("--no-parser", action="store_true", help="do not load Stanza (CoNLL-U only)")
+    w.add_argument("--no-browser", action="store_true", help="do not open the page in the web browser")
+    st = sub.add_parser("setup", help="download and check the Stanza model for French (about 320 MB, once)")
+    st.add_argument("--remove-duplicate", action="store_true",
+                    help="delete the Hugging Face cache copy of the model (Stanza keeps its own copy)")  # fmt: skip
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -147,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
         return _analyze_command(args)
     if args.command == "serve":
         return _serve_command(args)
+    if args.command == "setup":
+        return _setup_command(args)
 
     out = args.output or args.file.with_suffix(".positions.csv")
     summary = compute_file(args.file, args.scheme, out, args.sentences, args.warnings, args.parataxis)
@@ -162,12 +168,48 @@ def _serve_command(args: argparse.Namespace) -> int:
 
         from .web.app import create_app
     except ImportError:
-        print("error: install the web extra: pip install 'flux_complexity[web]'", file=sys.stderr)
+        print('error: the web part is not installed. In the flux_complexity folder, run: uv tool install --force ".[web,parser]"', file=sys.stderr)
         return 2
     app = create_app(args.db, load_parser=not args.no_parser)
+    url = f"http://127.0.0.1:{args.port}/"
     print(f"database: {args.db}")
-    print(f"open http://127.0.0.1:{args.port}/docs  (Ctrl+C to stop)")
+    print(f"page:     {url}   (corpora: {url}experiences, API: {url}docs)")
+    print("Ctrl+C to stop")
+    if not args.no_browser:
+        import threading
+        import webbrowser
+
+        threading.Timer(1.5, webbrowser.open, args=(url,)).start()
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")  # local only, no auth
+    return 0
+
+
+def _setup_command(args: argparse.Namespace) -> int:
+    from .parse import ParserUnavailable, StanzaParser, folder_size, hf_duplicate
+
+    parser = StanzaParser()
+    print("loading the Stanza model for French (the first time this downloads about 320 MB)...")
+    try:
+        info = parser.info()
+        parser.parse("Le chat dort.")
+    except ParserUnavailable as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    loc = parser.location()
+    print(f"ok: Stanza {info.stanza_version}, models {', '.join(f'{k}={v}' for k, v in info.models.items())}")
+    print(f"model folder: {loc} ({folder_size(loc) / 1e6:.0f} MB)")
+    dup = hf_duplicate(parser.language)
+    if dup is None:
+        print("no duplicate copy in the Hugging Face cache")
+    elif args.remove_duplicate:
+        size = folder_size(dup)
+        import shutil
+
+        shutil.rmtree(dup)
+        print(f"removed the duplicate copy {dup} ({size / 1e6:.0f} MB freed)")
+    else:
+        print(f"note: {dup} holds a second copy of the model ({folder_size(dup) / 1e6:.0f} MB) that Stanza "
+              "no longer needs; run `fluxcalc setup --remove-duplicate` to delete it")  # fmt: skip
     return 0
 
 

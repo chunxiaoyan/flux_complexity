@@ -55,11 +55,24 @@
     <section class="card" aria-labelledby="h-dist">
       <h2 id="h-dist">Distribution dans <span id="corpus-title"></span></h2>
       <p id="corpus-meta" class="muted"></p>
-      <div class="dist-grid">
-        <div><h3>Taille du flux</h3><table class="data dist" id="dist-size"></table></div>
-        <div><h3>Poids du flux</h3><table class="data dist" id="dist-weight"></table></div>
+      <div class="chart-controls">
+        <label>Comparer avec&nbsp;: <select id="cmp-norm"></select></label>
+        <div class="chart-legend" id="chart-legend"></div>
       </div>
-      <p class="hint">P(X ≥ k)&nbsp;: proportion des positions du corpus dont la valeur est au moins k.</p>
+      <div class="dist-grid">
+        <figure class="chart"><figcaption>Taille du flux — part des positions pour chaque valeur</figcaption>
+          <div id="chart-size"></div></figure>
+        <figure class="chart"><figcaption>Poids du flux — part des positions pour chaque valeur</figcaption>
+          <div id="chart-weight"></div></figure>
+      </div>
+      <details class="secondary" open>
+        <summary>Tableaux (valeurs exactes pour ce corpus)</summary>
+        <div class="dist-grid">
+          <div><h3>Taille du flux</h3><table class="data dist" id="dist-size"></table></div>
+          <div><h3>Poids du flux</h3><table class="data dist" id="dist-weight"></table></div>
+        </div>
+        <p class="hint">P(X ≥ k)&nbsp;: proportion des positions du corpus dont la valeur est au moins k.</p>
+      </details>
     </section>
 
     <!-- 3. search -->
@@ -152,7 +165,9 @@
 </main>
 
 <footer id="footer"></footer>
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
 <script src="/static/tree.js"></script>
+<script src="/static/charts.js"></script>
 <script src="/static/experiences.js"></script>
 </body>
 </html>

@@ -4,13 +4,70 @@ import sys
 
 import pytest
 
+from flux_complexity import parse as parse_mod
 from flux_complexity.parse import ParserUnavailable, StanzaParser
 
 
 def test_missing_stanza_gives_clear_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "stanza", None)  # makes `import stanza` fail
-    with pytest.raises(ParserUnavailable, match="pip install"):
+    with pytest.raises(ParserUnavailable, match="uv tool install"):
         StanzaParser(download=False).parse("Bonjour.")
+    with pytest.raises(ParserUnavailable, match="not installed"):
+        StanzaParser(download=False).info()  # used by `fluxcalc setup`: no raw ImportError
+
+
+class FakeStanza:
+    """Stands in for the stanza module: no model until download() is called."""
+
+    def __init__(self, hf_cache, have_model=False):
+        self.hf_cache, self.have_model, self.downloads = hf_cache, have_model, 0
+
+    def download(self, lang, **kw):
+        self.downloads += 1
+        (self.hf_cache / f"models--stanfordnlp--stanza-{lang}" / "blobs").mkdir(parents=True, exist_ok=True)
+        self.have_model = True
+
+    def Pipeline(self, lang, **kw):  # noqa: N802 (stanza's name)
+        assert kw["download_method"] is None  # never let Stanza go to the network by itself
+        if not self.have_model:
+            raise FileNotFoundError("resources.json")
+        return object()
+
+
+@pytest.fixture
+def fake_stanza(tmp_path, monkeypatch):
+    pytest.importorskip("huggingface_hub")
+    from huggingface_hub import constants
+
+    monkeypatch.setattr(constants, "HF_HUB_CACHE", str(tmp_path))
+    fake = FakeStanza(tmp_path)
+    monkeypatch.setattr(parse_mod, "_import_stanza", lambda: fake)
+    return fake
+
+
+def test_local_model_is_used_without_network(fake_stanza):
+    fake_stanza.have_model = True
+    StanzaParser()._pipeline()
+    assert fake_stanza.downloads == 0
+
+
+def test_download_removes_the_hf_copy_it_created(fake_stanza, tmp_path):
+    StanzaParser()._pipeline()
+    assert fake_stanza.downloads == 1
+    assert not (tmp_path / "models--stanfordnlp--stanza-fr").exists()  # no second 320 MB copy
+
+
+def test_download_keeps_a_preexisting_hf_copy(fake_stanza, tmp_path):
+    mine = tmp_path / "models--stanfordnlp--stanza-fr"
+    mine.mkdir()
+    StanzaParser()._pipeline()
+    assert mine.exists()  # not ours: left alone (fluxcalc setup --remove-duplicate deletes it on request)
+
+
+def test_no_download_mode_reports_the_folder(fake_stanza, tmp_path):
+    with pytest.raises(ParserUnavailable, match="no Stanza model"):
+        StanzaParser(download=False, model_dir=str(tmp_path / "models"))._pipeline()
+    assert fake_stanza.downloads == 0
 
 
 @pytest.fixture(scope="module")

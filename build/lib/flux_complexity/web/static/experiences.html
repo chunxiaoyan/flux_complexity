@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corpus et expériences — flux de dépendances</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="wide">
+<header>
+  <nav class="nav"><a href="/">Analyser un texte</a><a href="/experiences" aria-current="page">Corpus et expériences</a></nav>
+  <h1>Corpus et expériences</h1>
+  <p class="subtitle">Importez un treebank CoNLL-U (UD ou SUD), consultez la distribution de la taille et du poids
+    du flux, cherchez des phrases selon les valeurs du flux ou la forme de sa matrice, puis exportez les résultats.</p>
+</header>
+
+<main>
+  <!-- 1. corpora -->
+  <section class="card" aria-labelledby="h-corpora">
+    <h2 id="h-corpora">Mes corpus</h2>
+    <p id="no-corpus" class="muted" hidden>Aucun corpus importé pour l'instant.</p>
+    <div class="table-scroll">
+      <table id="corpora" class="data" hidden>
+        <thead><tr><th>Nom</th><th>Schéma</th><th>Parataxe</th><th class="num">Phrases</th>
+          <th class="num">Positions</th><th class="num">Avertissements</th><th>Importé le</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <details id="import-box" class="secondary">
+      <summary>Importer un corpus</summary>
+      <form id="import-form" class="form-grid">
+        <label>Fichier CoNLL-U&nbsp;: <input type="file" id="imp-file" accept=".conllu,.conll,.txt" required></label>
+        <label>Nom (facultatif)&nbsp;: <input type="text" id="imp-name" maxlength="100" placeholder="nom du fichier par défaut"></label>
+        <label>Schéma d'annotation&nbsp;:
+          <select id="imp-scheme"><option value="UD">UD</option><option value="SUD">SUD</option></select>
+        </label>
+        <label>Parataxe&nbsp;:
+          <select id="imp-parataxis">
+            <option value="exact" selected>couper « parataxis » seulement (par défaut)</option>
+            <option value="all">couper « parataxis » et ses sous-types</option>
+            <option value="keep">ne rien couper</option>
+          </select>
+        </label>
+        <p class="hint">La ponctuation est toujours retirée du calcul. Une dépendance coupée ne compte dans aucune
+          position du flux.</p>
+        <div><button type="submit" id="imp-submit">Importer</button></div>
+      </form>
+    </details>
+    <p id="corpus-status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <div id="corpus-view" hidden>
+    <!-- 2. distributions -->
+    <section class="card" aria-labelledby="h-dist">
+      <h2 id="h-dist">Distribution dans <span id="corpus-title"></span></h2>
+      <p id="corpus-meta" class="muted"></p>
+      <div class="chart-controls">
+        <label>Comparer avec&nbsp;: <select id="cmp-norm"></select></label>
+        <div class="chart-legend" id="chart-legend"></div>
+      </div>
+      <div class="dist-grid">
+        <figure class="chart"><figcaption>Taille du flux — part des positions pour chaque valeur</figcaption>
+          <div id="chart-size"></div></figure>
+        <figure class="chart"><figcaption>Poids du flux — part des positions pour chaque valeur</figcaption>
+          <div id="chart-weight"></div></figure>
+      </div>
+      <details class="secondary" open>
+        <summary>Tableaux (valeurs exactes pour ce corpus)</summary>
+        <div class="dist-grid">
+          <div><h3>Taille du flux</h3><table class="data dist" id="dist-size"></table></div>
+          <div><h3>Poids du flux</h3><table class="data dist" id="dist-weight"></table></div>
+        </div>
+        <p class="hint">P(X ≥ k)&nbsp;: proportion des positions du corpus dont la valeur est au moins k.</p>
+      </details>
+    </section>
+
+    <!-- 3. search -->
+    <section class="card" aria-labelledby="h-search">
+      <h2 id="h-search">Rechercher des phrases</h2>
+      <p class="hint">Les conditions sur le flux (taille, poids, relation, matrice) doivent être vraies
+        <strong>dans une même position</strong>.</p>
+      <form id="search-form">
+        <div class="form-row">
+          <fieldset><legend>Poids</legend>
+            <label>min <input type="number" id="q-wmin" min="1" step="1"></label>
+            <label>max <input type="number" id="q-wmax" min="1" step="1"></label></fieldset>
+          <fieldset><legend>Taille</legend>
+            <label>min <input type="number" id="q-smin" min="1" step="1"></label>
+            <label>max <input type="number" id="q-smax" min="1" step="1"></label></fieldset>
+          <fieldset><legend>Relation dans la position</legend>
+            <input type="text" id="q-deprel" list="deprels" placeholder="ex. acl (inclut acl:relcl)" maxlength="40">
+            <datalist id="deprels"></datalist></fieldset>
+          <fieldset><legend>La phrase contient</legend>
+            <input type="text" id="q-text" maxlength="200" placeholder="mot ou expression"></fieldset>
+        </div>
+
+        <details id="matrix-box" class="secondary">
+          <summary>Forme de la matrice de flux</summary>
+          <div class="matrix-builder">
+            <p class="hint">Lignes&nbsp;: les mots à gauche de la position, numérotés à partir du plus éloigné
+              (de gauche à droite). Colonnes&nbsp;: les mots à droite, numérotés à partir du plus éloigné (de droite
+              à gauche). Cliquez sur les cases qui doivent contenir une dépendance.</p>
+            <div class="form-row">
+              <label>Lignes <select id="m-rows"></select></label>
+              <label>Colonnes <select id="m-cols"></select></label>
+              <label><input type="radio" name="m-mode" value="exact" checked> exactement ces cases</label>
+              <label><input type="radio" name="m-mode" value="contains"> au moins ces cases</label>
+              <button type="button" id="m-clear" class="link">Vider la matrice</button>
+            </div>
+            <table id="m-grid" class="matrix-grid" aria-label="Matrice à rechercher"></table>
+            <p class="hint">Exemples&nbsp;: une diagonale (1,1) (2,2) (3,3) = trois dépendances disjointes&nbsp;;
+              une colonne = un bouquet vers la gauche&nbsp;; une ligne = un bouquet vers la droite.</p>
+          </div>
+        </details>
+
+        <div class="form-row actions">
+          <button type="submit">Rechercher</button>
+          <button type="button" id="q-reset" class="link">Effacer les critères</button>
+          <a id="export-link" href="#" download>Exporter toutes les positions du corpus (CSV)</a>
+        </div>
+      </form>
+      <p id="search-status" class="status" role="status" aria-live="polite"></p>
+      <div class="table-scroll">
+        <table id="results-table" class="data results" hidden>
+          <thead><tr><th class="num">N°</th><th>sent_id</th><th>Phrase</th><th class="num">Poids max</th>
+            <th class="num">Taille max</th><th>Positions trouvées</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="pager" class="pager" hidden>
+        <button type="button" id="prev" class="secondary-btn">← Précédentes</button>
+        <span id="page-info"></span>
+        <button type="button" id="next" class="secondary-btn">Suivantes →</button>
+      </div>
+    </section>
+
+    <!-- 4. sentence detail -->
+    <section class="card" id="detail" hidden aria-labelledby="h-detail">
+      <h2 id="h-detail">Phrase <span id="d-id"></span></h2>
+      <p id="d-text" class="d-text"></p>
+      <div class="controls">
+        <div class="toggle" role="radiogroup" aria-label="Indicateur utilisé pour la couleur">
+          <span class="toggle-label">Colorer selon&nbsp;:</span>
+          <label><input type="radio" name="d-metric" value="weight" checked> le poids</label>
+          <label><input type="radio" name="d-metric" value="size"> la taille</label>
+        </div>
+        <span class="muted" id="d-norm"></span>
+      </div>
+      <div class="tree-scroll" id="d-tree"></div>
+      <p class="hint">Cliquez sur une case entre deux mots (ou sur une ligne du tableau) pour afficher la matrice
+        de flux. Les positions trouvées par la recherche sont encadrées.</p>
+      <div class="detail-grid">
+        <div class="positions-scroll">
+          <table class="data" id="d-positions">
+            <thead><tr><th class="num" title="Position">Pos.</th><th>Entre</th><th class="num">Taille</th><th class="num">Poids</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="d-matrix" class="matrix-view" aria-live="polite"></div>
+      </div>
+      <ul id="d-warnings" class="warnings"></ul>
+    </section>
+  </div>
+</main>
+
+<footer id="footer"></footer>
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+<script src="/static/tree.js"></script>
+<script src="/static/charts.js"></script>
+<script src="/static/experiences.js"></script>
+</body>
+</html>

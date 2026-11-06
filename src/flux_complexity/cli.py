@@ -14,10 +14,9 @@ import sys
 from pathlib import Path
 
 from .core import (
+    PARATAXIS_MODES,
     CorpusSummary,
-    CutParataxis,
-    RemovePunct,
-    Transform,
+    build_pipeline,
     compute_flux,
     process,
     read_conllu,
@@ -31,23 +30,6 @@ POSITION_COLUMNS = [
 SENTENCE_COLUMNS = [
     "sent_id", "n_words", "n_positions", "max_size", "mean_size", "max_weight", "mean_weight", "text",
 ]  # fmt: skip
-
-
-PARATAXIS_MODES = {
-    "exact": "cut only the bare label 'parataxis', keep parataxis:* subtypes (default, legacy)",
-    "all": "cut parataxis and all parataxis:* subtypes",
-    "keep": "do not cut parataxis",
-}
-
-
-def build_pipeline(parataxis: str = "exact") -> tuple[Transform, ...]:
-    if parataxis == "exact":
-        return (RemovePunct(), CutParataxis())
-    if parataxis == "all":
-        return (RemovePunct(), CutParataxis(include_subtypes=True))
-    if parataxis == "keep":
-        return (RemovePunct(),)
-    raise ValueError(f"parataxis mode must be one of {list(PARATAXIS_MODES)}")
 
 
 def _fmt(x: float | None) -> str:
@@ -136,15 +118,46 @@ def main(argv: list[str] | None = None) -> int:
         default="exact",
         help="; ".join(f"{k}: {v}" for k, v in PARATAXIS_MODES.items()),
     )
+    n = sub.add_parser("norms", help="list or inspect reference norms")
+    nsub = n.add_subparsers(dest="norms_command", required=True)
+    nsub.add_parser("list", help="list built-in norms")
+    show = nsub.add_parser("show", help="show a norm with its colour levels")
+    show.add_argument("norm", help="built-in norm name or path to a norm JSON file")
     args = parser.parse_args(argv)
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if args.command == "norms":
+        return _norms_command(args)
 
     out = args.output or args.file.with_suffix(".positions.csv")
     summary = compute_file(args.file, args.scheme, out, args.sentences, args.warnings, args.parataxis)
     pipeline = " -> ".join(t.name for t in build_pipeline(args.parataxis))
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
     print(format_summary(summary, pipeline))
     print(f"positions written to {out}")
+    return 0
+
+
+def _norms_command(args: argparse.Namespace) -> int:
+    from .norms import DEFAULT_THRESHOLDS, Norm, list_builtin
+
+    if args.norms_command == "list":
+        for name in list_builtin():
+            d = Norm.builtin(name).data
+            print(f"{name:<26} {d['scheme']:<4} {d['release']:<6} "
+                  f"sentences={d['n_sentences']:>6} positions={d['n_positions']:>7}")  # fmt: skip
+        return 0
+    norm = Norm.load(args.norm) if args.norm.endswith(".json") else Norm.builtin(args.norm)
+    d = norm.data
+    print(f"{d['name']}  scheme={d['scheme']}  release={d['release']}  pipeline={' -> '.join(d['pipeline'])}")
+    print(f"sentences={d['n_sentences']}  positions={d['n_positions']}  warnings={d['n_warnings']}")
+    th = " / ".join(f"{t:.0%}" for t in DEFAULT_THRESHOLDS)
+    for metric in ("weight", "size"):
+        m = d["metrics"][metric]
+        print(f"\n{metric}: mean={m['mean']} std={m['std']} max={m['max']}   (levels: P <= {th})")
+        for k, c in m["counts"].items():
+            v = int(k)
+            print(f"  {metric}={v:<3} n={c:<8} P(>={v})={norm.tail(metric, v):.4f}  level={norm.level(metric, v)}")
     return 0
 
 

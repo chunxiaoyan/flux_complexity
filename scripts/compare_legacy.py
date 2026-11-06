@@ -26,7 +26,7 @@ import difflib
 import sys
 from pathlib import Path
 
-from flux_complexity.cli import build_pipeline
+from flux_complexity.core import build_pipeline
 from flux_complexity.core import compute_flux, process, read_conllu
 
 PAIRS = {  # excel name -> conllu path relative to corpus root

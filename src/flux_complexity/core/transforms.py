@@ -99,6 +99,23 @@ class RemoveFunctionWords(Transform):
 
 DEFAULT_PIPELINE: tuple[Transform, ...] = (RemovePunct(), CutParataxis())
 
+PARATAXIS_MODES = {
+    "exact": "cut only the bare label 'parataxis', keep parataxis:* subtypes (default, legacy)",
+    "all": "cut parataxis and all parataxis:* subtypes",
+    "keep": "do not cut parataxis",
+}
+
+
+def build_pipeline(parataxis: str = "exact") -> tuple[Transform, ...]:
+    """The v1 pipeline for a given parataxis mode (spec §3.2)."""
+    if parataxis == "exact":
+        return (RemovePunct(), CutParataxis())
+    if parataxis == "all":
+        return (RemovePunct(), CutParataxis(include_subtypes=True))
+    if parataxis == "keep":
+        return (RemovePunct(),)
+    raise ValueError(f"parataxis mode must be one of {list(PARATAXIS_MODES)}")
+
 
 def process(sentence: Sentence, pipeline: Sequence[Transform] = DEFAULT_PIPELINE) -> ProcessedSentence:
     for t in pipeline:

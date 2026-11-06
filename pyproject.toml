@@ -24,5 +24,8 @@ fluxcalc = "flux_complexity.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"flux_complexity.norms" = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

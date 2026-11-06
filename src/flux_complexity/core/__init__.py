@@ -6,15 +6,18 @@ from .reader import parse_conllu, read_conllu
 from .summary import CorpusSummary, Distribution, SentenceSummary, summarize_sentence
 from .transforms import (
     DEFAULT_PIPELINE,
+    PARATAXIS_MODES,
     CutParataxis,
     RemoveFunctionWords,
     RemovePunct,
     Transform,
+    build_pipeline,
     process,
 )
 
 __all__ = [
     "DEFAULT_PIPELINE",
+    "PARATAXIS_MODES",
     "CorpusSummary",
     "CutParataxis",
     "Dependency",
@@ -28,6 +31,7 @@ __all__ = [
     "SentenceSummary",
     "Transform",
     "Word",
+    "build_pipeline",
     "compute_flux",
     "flux_weight",
     "parse_conllu",

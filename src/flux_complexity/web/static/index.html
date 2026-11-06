@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Complexité syntaxique — flux de dépendances</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Où ma phrase est-elle complexe&nbsp;?</h1>
+  <p class="subtitle">Écrivez une phrase ou un paragraphe en français. Les endroits où beaucoup de liens
+    syntaxiques restent « ouverts » en même temps sont surlignés en rouge.</p>
+</header>
+
+<main>
+  <section class="input-card">
+    <label for="text" class="sr-only">Votre texte</label>
+    <textarea id="text" rows="5" maxlength="20000"
+      placeholder="Ex. : Le livre que le professeur que les étudiants admirent a écrit est passionnant."></textarea>
+
+    <div class="controls">
+      <button id="analyze" type="button">Analyser</button>
+
+      <div class="toggle" role="radiogroup" aria-label="Indicateur utilisé pour la couleur">
+        <span class="toggle-label">Colorer selon&nbsp;:</span>
+        <label><input type="radio" name="metric" value="weight" checked> le poids</label>
+        <label><input type="radio" name="metric" value="size"> la taille</label>
+      </div>
+
+      <label class="norm-select">Comparer avec&nbsp;:
+        <select id="norm"></select>
+      </label>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <details class="secondary">
+      <summary>Options avancées</summary>
+      <div class="advanced">
+        <p>Seuils de couleur&nbsp;: une position est colorée si la proportion de positions du corpus de
+          référence qui atteignent la même valeur est inférieure ou égale au seuil.</p>
+        <table class="thresholds">
+          <thead><tr><th></th><th><span class="swatch l1"></span>clair</th><th><span class="swatch l2"></span>moyen</th><th><span class="swatch l3"></span>foncé</th></tr></thead>
+          <tbody>
+            <tr data-metric="weight"><th>Poids</th>
+              <td><input type="number" min="0" max="100" step="0.1" value="40"> %</td>
+              <td><input type="number" min="0" max="100" step="0.1" value="5"> %</td>
+              <td><input type="number" min="0" max="100" step="0.1" value="1"> %</td></tr>
+            <tr data-metric="size"><th>Taille</th>
+              <td><input type="number" min="0" max="100" step="0.1" value="10"> %</td>
+              <td><input type="number" min="0" max="100" step="0.1" value="5"> %</td>
+              <td><input type="number" min="0" max="100" step="0.1" value="2"> %</td></tr>
+          </tbody>
+        </table>
+        <button id="reset-thresholds" type="button" class="link">Valeurs par défaut</button>
+      </div>
+    </details>
+
+    <details class="secondary" id="upload-box">
+      <summary>Vous avez déjà un fichier CoNLL-U&nbsp;?</summary>
+      <div class="advanced">
+        <p>Analysez un fichier déjà annoté (UD ou SUD) sans passer par l'analyseur automatique.</p>
+        <label>Fichier&nbsp;: <input type="file" id="file" accept=".conllu,.conll,.txt"></label>
+        <label>Schéma d'annotation&nbsp;:
+          <select id="scheme"><option value="UD">UD</option><option value="SUD">SUD</option></select>
+        </label>
+        <button id="analyze-file" type="button">Analyser le fichier</button>
+      </div>
+    </details>
+  </section>
+
+  <section id="legend" class="legend" hidden>
+    <span><span class="swatch l1"></span>assez rare</span>
+    <span><span class="swatch l2"></span>rare</span>
+    <span><span class="swatch l3"></span>très rare</span>
+    <span class="legend-note">par rapport au corpus de référence. Survolez un espace entre deux mots pour voir le détail.</span>
+  </section>
+
+  <section id="results" aria-live="polite"></section>
+
+  <section class="explain">
+    <h2>Comment lire le résultat&nbsp;?</h2>
+    <p>Entre deux mots voisins, on compte les <strong>liens syntaxiques</strong> (dépendances) qui passent
+      par-dessus cet endroit&nbsp;: ce sont des relations commencées mais pas encore terminées. On appelle cet
+      ensemble le <strong>flux</strong>.</p>
+    <ul>
+      <li><strong>Taille</strong>&nbsp;: le nombre de liens qui traversent cet endroit.</li>
+      <li><strong>Poids</strong>&nbsp;: le plus grand nombre de ces liens qui ne partagent aucun mot. Un poids
+        élevé signifie que plusieurs constructions indépendantes sont imbriquées les unes dans les autres&nbsp;;
+        le lecteur doit alors garder plusieurs choses en mémoire en même temps.</li>
+    </ul>
+    <p>La couleur indique si la valeur est <strong>rare</strong> dans un corpus de référence de textes
+      français (par défaut, le corpus écrit Sequoia). La ponctuation n'est pas prise en compte dans le calcul.</p>
+    <p class="caveat">L'analyse syntaxique est automatique (Stanza)&nbsp;: elle peut contenir des erreurs,
+      surtout pour des phrases longues ou peu usuelles.</p>
+  </section>
+</main>
+
+<footer id="footer"></footer>
+
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .. import __version__
@@ -27,6 +28,7 @@ from .db import Database
 MAX_TEXT_CHARS = 20_000
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 Scheme = Literal["UD", "SUD"]
+STATIC_DIR = Path(__file__).parent / "static"
 POSITION_COLUMNS = ["sent_id", "position", "left_id", "left_form", "right_id", "right_form", "size", "weight", "deps"]
 
 
@@ -249,5 +251,13 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
         filename += ".positions.csv"
         return StreamingResponse(rows(), media_type="text/csv; charset=utf-8",
                                  headers={"Content-Disposition": f'attachment; filename="{filename}"'})  # fmt: skip
+
+    # ------------------------------------------------------------- pages
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def beginner_page():
+        """Page « Analyser un texte » (stage 5)."""
+        return FileResponse(STATIC_DIR / "index.html")
 
     return app

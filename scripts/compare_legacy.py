@@ -7,10 +7,10 @@ Two comparisons per corpus file:
   A. new code WITHOUT parataxis cut  vs  legacy tree2flux + Flux.flux_weight run live
      (legacy = unpunctATree, no parataxis step). Expected: identical except sentences
      the legacy code skipped (punctuation with dependents).
-  B. new code, default parataxis mode "all"  vs  saved experimental_data_*.xlsx
+  B. new code, parataxis mode "all"  vs  saved experimental_data_*.xlsx
      (produced by the lost update_parataxis_gov). Rows are aligned in order, since the
      Excel files carry no sentence id. Differences come from parataxis:* subtypes.
-  C. new code, parataxis mode "exact" (bare label only)  vs  saved Excel.
+  C. new code, default parataxis mode "exact" (bare label only)  vs  saved Excel.
      Expected: identical — this is how the legacy function behaved.
 
 Usage:

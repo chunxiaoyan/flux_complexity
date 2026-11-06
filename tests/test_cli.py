@@ -44,3 +44,6 @@ def test_parataxis_modes(tmp_path):
         main(["compute", str(f), "--scheme", "UD", "-o", str(out), "--parataxis", mode])
         counts[mode] = len(list(csv.DictReader(open(out, encoding="utf-8-sig"))))
     assert counts == {"all": 0, "exact": 1, "keep": 1}
+    default = tmp_path / "default.csv"
+    main(["compute", str(f), "--scheme", "UD", "-o", str(default)])
+    assert len(list(csv.DictReader(open(default, encoding="utf-8-sig")))) == counts["exact"]

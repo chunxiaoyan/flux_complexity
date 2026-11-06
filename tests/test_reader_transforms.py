@@ -83,22 +83,24 @@ def test_punct_detected_by_upos_not_deprel(run):
     assert [ps.word(k).form for k in range(1, ps.n + 1)] == ["a", "b"]
 
 
-def test_parataxis_subtype_is_cut_and_toggle(run):
-    rows = [
-        (1, "a", "VERB", 0, "root"),
-        (2, "b", "VERB", 1, "parataxis:insert"),
-    ]
-    _, pos = run(rows)
+BARE = [(1, "a", "VERB", 0, "root"), (2, "b", "VERB", 1, "parataxis")]
+SUBTYPE = [(1, "a", "VERB", 0, "root"), (2, "b", "VERB", 1, "parataxis:insert")]
+
+
+def test_default_cuts_bare_parataxis_only(run):
+    # default (legacy "exact"): bare label cut, subtypes kept
+    _, pos = run(BARE)
     assert pos == []
-    _, pos = run(rows, pipeline=(RemovePunct(),))
+    _, pos = run(SUBTYPE)
     assert [(p.size, p.weight) for p in pos] == [(1, 1)]
-    # legacy mode: only the bare label is cut, subtypes are kept
-    ps, pos = run(rows, pipeline=(RemovePunct(), CutParataxis(include_subtypes=False)))
-    assert [(p.size, p.weight) for p in pos] == [(1, 1)]
-    assert ps.pipeline == ("remove_punct", "cut_parataxis_exact")
-    _, pos = run([(1, "a", "VERB", 0, "root"), (2, "b", "VERB", 1, "parataxis")],
-                 pipeline=(RemovePunct(), CutParataxis(include_subtypes=False)))  # fmt: skip
+
+
+def test_parataxis_all_subtypes_and_keep(run):
+    ps, pos = run(SUBTYPE, pipeline=(RemovePunct(), CutParataxis(include_subtypes=True)))
     assert pos == []
+    assert ps.pipeline == ("remove_punct", "cut_parataxis_all")
+    _, pos = run(BARE, pipeline=(RemovePunct(),))
+    assert [(p.size, p.weight) for p in pos] == [(1, 1)]
 
 
 def test_function_word_stub_is_ud_only():

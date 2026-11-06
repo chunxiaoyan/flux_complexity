@@ -68,14 +68,15 @@ class RemovePunct(Transform):
 class CutParataxis(Transform):
     """Remove parataxis arcs.
 
-    include_subtypes=True (spec default): 'parataxis' and every 'parataxis:*'.
-    include_subtypes=False: only the bare label 'parataxis' — this is what the legacy
+    include_subtypes=False (default, spec §3.2): only the bare label 'parataxis';
+    subtypes such as 'parataxis:insert' are kept. This is what the legacy
     update_parataxis_gov did (it reproduces the saved experimental_data_*.xlsx exactly).
+    include_subtypes=True: 'parataxis' and every 'parataxis:*'.
     """
 
-    def __init__(self, include_subtypes: bool = True) -> None:
+    def __init__(self, include_subtypes: bool = False) -> None:
         self.include_subtypes = include_subtypes
-        self.name = "cut_parataxis" if include_subtypes else "cut_parataxis_exact"
+        self.name = "cut_parataxis_all" if include_subtypes else "cut_parataxis"
 
     def matches(self, deprel: str) -> bool:
         return (deprel.split(":")[0] if self.include_subtypes else deprel) == "parataxis"

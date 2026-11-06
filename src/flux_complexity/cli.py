@@ -34,17 +34,17 @@ SENTENCE_COLUMNS = [
 
 
 PARATAXIS_MODES = {
-    "all": "cut parataxis and all parataxis:* subtypes (spec default)",
-    "exact": "cut only the bare label 'parataxis' (legacy behaviour)",
+    "exact": "cut only the bare label 'parataxis', keep parataxis:* subtypes (default, legacy)",
+    "all": "cut parataxis and all parataxis:* subtypes",
     "keep": "do not cut parataxis",
 }
 
 
-def build_pipeline(parataxis: str = "all") -> tuple[Transform, ...]:
-    if parataxis == "all":
-        return (RemovePunct(), CutParataxis())
+def build_pipeline(parataxis: str = "exact") -> tuple[Transform, ...]:
     if parataxis == "exact":
-        return (RemovePunct(), CutParataxis(include_subtypes=False))
+        return (RemovePunct(), CutParataxis())
+    if parataxis == "all":
+        return (RemovePunct(), CutParataxis(include_subtypes=True))
     if parataxis == "keep":
         return (RemovePunct(),)
     raise ValueError(f"parataxis mode must be one of {list(PARATAXIS_MODES)}")
@@ -60,7 +60,7 @@ def compute_file(
     positions_out: Path,
     sentences_out: Path | None = None,
     warnings_out: Path | None = None,
-    parataxis: str = "all",
+    parataxis: str = "exact",
 ) -> CorpusSummary:
     pipeline = build_pipeline(parataxis)
     summary = CorpusSummary()
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument(
         "--parataxis",
         choices=list(PARATAXIS_MODES),
-        default="all",
+        default="exact",
         help="; ".join(f"{k}: {v}" for k, v in PARATAXIS_MODES.items()),
     )
     args = parser.parse_args(argv)

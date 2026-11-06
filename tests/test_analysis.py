@@ -9,6 +9,8 @@ from flux_complexity.core import parse_conllu
 from flux_complexity.norms import Norm
 from flux_complexity.render import render, render_sentence
 
+from .conftest import make_conllu
+
 # "Il pleut, je reste au lit." as Stanza outputs it (au = à + le, SpaceAfter=No)
 AU = """# sent_id = s1
 # text = Il pleut, je reste au lit.
@@ -47,6 +49,35 @@ def test_positions_map_back_to_surface():
     p5 = by_pos[5]  # à|le inside "au"
     assert (p5.left_id, p5.right_id, p5.inside_token, p5.left_token) == (6, 7, True, 5)
     assert p5.deps == ((5, 8, "obl"), (8, 6, "case"))
+
+
+def test_tree_words_for_drawing():
+    (s,) = analyze_conllu(AU, "UD").sentences
+    tree = {w.id: (w.form, w.upos, w.head, w.deprel, w.status) for w in s.words}
+    assert len(tree) == 9  # syntactic words: "au" is à + le
+    assert tree[2] == ("pleut", "VERB", 0, "root", "root")
+    assert tree[3] == (",", "PUNCT", 5, "punct", "punct")
+    assert tree[6] == ("à", "ADP", 8, "case", "flux")
+    # every counted arc is exactly a dependency crossing some flux position
+    crossing = {(g, d) for p in s.positions for g, d, _ in p.deps}
+    assert {(w.head, w.id) for w in s.words if w.status == "flux"} == crossing
+
+
+def test_tree_words_cut_parataxis_and_reattachment():
+    rows = [
+        (1, "Il", "PRON", 2, "nsubj"),
+        (2, "dort", "VERB", 0, "root"),
+        (3, "(", "PUNCT", 2, "punct"),
+        (4, "vite", "ADV", 3, "advmod"),
+        (5, "je", "PRON", 6, "nsubj"),
+        (6, "pense", "VERB", 2, "parataxis"),
+    ]
+    text = make_conllu(rows)
+    (s,) = analyze_conllu(text, "UD").sentences
+    tree = {w.id: (w.head, w.status) for w in s.words}
+    assert tree[6] == (2, "cut")  # parataxis is drawn but not counted
+    assert tree[4] == (2, "flux")  # child of "(" is drawn reattached, as computed
+    assert tree[3] == (2, "punct")
 
 
 def test_levels_and_tails_against_default_norm():

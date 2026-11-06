@@ -74,7 +74,8 @@
     <span><span class="swatch l1"></span>assez rare</span>
     <span><span class="swatch l2"></span>rare</span>
     <span><span class="swatch l3"></span>très rare</span>
-    <span class="legend-note">par rapport au corpus de référence. Survolez un espace entre deux mots pour voir le détail.</span>
+    <span class="legend-note">par rapport au corpus de référence. Survolez une case entre deux mots pour voir les liens qui
+      passent au-dessus. En pointillé&nbsp;: liens non comptés (ponctuation, parataxe).</span>
   </section>
 
   <section id="results" aria-live="polite"></section>
@@ -90,6 +91,9 @@
         élevé signifie que plusieurs constructions indépendantes sont imbriquées les unes dans les autres&nbsp;;
         le lecteur doit alors garder plusieurs choses en mémoire en même temps.</li>
     </ul>
+    <p>Chaque phrase est affichée avec son arbre de dépendances&nbsp;: au-dessus de chaque mot, sa catégorie
+      (NOUN = nom, VERB = verbe, DET = déterminant…)&nbsp;; chaque flèche part d'un mot et pointe vers le mot qui
+      dépend de lui, avec le nom de la relation. Les cases colorées entre les mots donnent la valeur du flux.</p>
     <p>La couleur indique si la valeur est <strong>rare</strong> dans un corpus de référence de textes
       français (par défaut, le corpus écrit Sequoia). La ponctuation n'est pas prise en compte dans le calcul.</p>
     <p class="caveat">L'analyse syntaxique est automatique (Stanza)&nbsp;: elle peut contenir des erreurs,

@@ -253,6 +253,14 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
                                  headers={"Content-Disposition": f'attachment; filename="{filename}"'})  # fmt: skip
 
     # ------------------------------------------------------------- pages
+    @app.middleware("http")
+    async def revalidate_pages(request, call_next):
+        # the page is small and local: always revalidate, so an upgrade never shows stale JS
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/", include_in_schema=False)

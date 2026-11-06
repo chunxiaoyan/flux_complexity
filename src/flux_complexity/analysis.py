@@ -40,6 +40,24 @@ class PositionResult:
     deps: tuple[tuple[int, int, str], ...]  # (gov, dep, deprel) in original ids
 
 
+@dataclass(frozen=True)
+class TreeWord:
+    """One syntactic word of the dependency tree, for drawing (original ids).
+
+    head/deprel are those used for the computation (a word whose head was punctuation
+    is shown reattached, spec §3.1). status says whether its incoming arc is counted:
+    "flux" (counted), "root", "punct" (punctuation, not counted) or "cut" (cut
+    parataxis, not counted).
+    """
+
+    id: int
+    form: str
+    upos: str
+    head: int
+    deprel: str
+    status: str
+
+
 @dataclass
 class SentenceResult:
     sent_id: str
@@ -47,6 +65,7 @@ class SentenceResult:
     tokens: list[SurfaceToken]
     positions: list[PositionResult]
     warnings: list[str]
+    words: list[TreeWord] = field(default_factory=list)
 
     def peak(self, metric: str) -> PositionResult | None:
         """The position with the highest value of metric (first one on ties)."""
@@ -105,6 +124,20 @@ def surface_tokens(sent: Sentence) -> tuple[list[SurfaceToken], dict[int, int]]:
     return tokens, word2tok
 
 
+def tree_words(sent: Sentence, ps) -> list[TreeWord]:
+    """The tree to draw: counted arcs as computed, other arcs as annotated."""
+    counted = {ps.new2orig[d.dep - 1]: d for d in ps.deps}
+    out = []
+    for w in sent.words:
+        d = counted.get(w.id)
+        if d is not None:
+            out.append(TreeWord(w.id, w.form, w.upos, ps.new2orig[d.gov - 1], d.deprel, "flux"))
+            continue
+        status = "root" if w.head == 0 else ("punct" if w.upos == "PUNCT" else "cut")
+        out.append(TreeWord(w.id, w.form, w.upos, w.head or 0, w.deprel, status))
+    return out
+
+
 def render_text(tokens: Sequence[SurfaceToken]) -> str:
     return "".join(t.form + (" " if t.space_after else "") for t in tokens).rstrip()
 
@@ -158,6 +191,7 @@ def analyze_sentences(
                 tokens=tokens,
                 positions=positions,
                 warnings=list(ps.warnings),
+                words=tree_words(sent, ps),
             )
         )
     return result

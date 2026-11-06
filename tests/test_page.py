@@ -25,8 +25,10 @@ def test_page_and_assets_served(client):
     r = client.get("/")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
     assert '<html lang="fr">' in r.text and "Analyser" in r.text
+    assert r.headers["cache-control"] == "no-cache"  # never stale after an upgrade
     for asset in ("/static/app.js", "/static/style.css"):
-        assert client.get(asset).status_code == 200
+        a = client.get(asset)
+        assert a.status_code == 200 and a.headers["cache-control"] == "no-cache"
     assert "/" not in client.get("/openapi.json").json()["paths"]  # page not listed as an API
 
 

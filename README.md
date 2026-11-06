@@ -110,7 +110,7 @@ fluxcalc serve --no-parser
   10 %, 5 % et 2 % pour la taille. Ils sont réglables dans « Options avancées ».
 
 Toutes les règles de calcul, avec des exemples faits à la main qui servent aussi de tests, sont dans
-[docs/spec.md](docs/spec.md) (en chinois).
+[docs/spec.md](docs/spec.md).
 
 **Référence :** Chunxiao Yan (2021). *Complexité syntaxique et flux de dépendance : études quantitatives
 dans les treebanks Universal Dependencies.* Thèse de doctorat, Université Paris Nanterre.

@@ -151,8 +151,8 @@ def _norms_command(args: argparse.Namespace) -> int:
     d = norm.data
     print(f"{d['name']}  scheme={d['scheme']}  release={d['release']}  pipeline={' -> '.join(d['pipeline'])}")
     print(f"sentences={d['n_sentences']}  positions={d['n_positions']}  warnings={d['n_warnings']}")
-    th = " / ".join(f"{t:.0%}" for t in DEFAULT_THRESHOLDS)
     for metric in ("weight", "size"):
+        th = " / ".join(f"{t:.0%}" for t in DEFAULT_THRESHOLDS[metric])
         m = d["metrics"][metric]
         print(f"\n{metric}: mean={m['mean']} std={m['std']} max={m['max']}   (levels: P <= {th})")
         for k, c in m["counts"].items():

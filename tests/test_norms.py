@@ -53,11 +53,19 @@ def test_tail_and_levels(small_norm, tmp_path):
     assert norm.tail("weight", 3) == 0.0  # beyond observed max: rarer than anything
     assert norm.tail("size", 4) == pytest.approx(1 / 7)
     assert norm.level("weight", 1) == 0
-    assert norm.level("weight", 2) == 0  # 28.6% > 10%
+    assert norm.level("weight", 2) == 1  # 28.6% <= 40% (weight's own first threshold)
     assert norm.level("weight", 3) == 3
-    assert norm.level("size", 4, thresholds=(0.2, 0.15, 0.1)) == 2  # 14.3%
+    assert norm.level("size", 4) == 0  # 14.3% > 10% (size thresholds)
+    assert norm.level("size", 5) == 3  # beyond max
+    assert norm.level("size", 4, thresholds=(0.2, 0.15, 0.1)) == 2  # explicit override
     with pytest.raises(ValueError):
         norm.tail("mdd", 1)
+
+
+def test_default_norm_levels_use_all_three_shades():
+    norm = Norm.builtin(DEFAULT_UD_NORM)
+    assert [norm.level("weight", v) for v in (1, 2, 3, 4)] == [0, 1, 2, 3]
+    assert [norm.level("size", v) for v in (4, 5, 6, 7)] == [0, 1, 2, 3]
 
 
 def test_load_rejects_foreign_json(tmp_path):

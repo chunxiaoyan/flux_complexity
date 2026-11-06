@@ -20,7 +20,13 @@ from ..core import CorpusSummary, Distribution, Transform, compute_flux, process
 
 FORMAT = "flux_complexity.norm/1"
 METRICS = ("size", "weight")
-DEFAULT_THRESHOLDS = (0.10, 0.05, 0.02)  # light, medium, dark red (spec §8)
+# Tail-proportion thresholds for light / medium / dark red (spec §8). Weight gets its
+# own, looser first threshold: its values are so coarse that with 10% the first level
+# would never be reached (UD Sequoia: P(w>=2)=38%, P(w>=3)=4.3%).
+DEFAULT_THRESHOLDS: dict[str, tuple[float, ...]] = {
+    "weight": (0.40, 0.05, 0.01),
+    "size": (0.10, 0.05, 0.02),
+}
 DEFAULT_UD_NORM = "UD_French-Sequoia"  # beginner page default (spec §9)
 
 
@@ -92,9 +98,14 @@ class Norm:
         total = sum(counts.values())
         return sum(c for k, c in counts.items() if k >= value) / total if total else 0.0
 
-    def level(self, metric: str, value: int, thresholds: Sequence[float] = DEFAULT_THRESHOLDS) -> int:
-        """Colour level 0 (none) .. len(thresholds): how rare a value is in this norm."""
+    def level(self, metric: str, value: int, thresholds: Sequence[float] | None = None) -> int:
+        """Colour level 0 (none) .. len(thresholds): how rare a value is in this norm.
+
+        thresholds defaults to DEFAULT_THRESHOLDS[metric].
+        """
         t = self.tail(metric, value)
+        if thresholds is None:
+            thresholds = DEFAULT_THRESHOLDS[metric]
         return sum(1 for th in thresholds if t <= th)
 
     @classmethod

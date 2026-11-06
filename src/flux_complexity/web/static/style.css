@@ -107,4 +107,5 @@ svg.tree .gap:hover, svg.tree .gap.active, svg.tree .gap:focus { stroke: var(--a
 
 .explain p, .explain ul { margin: 0 0 8px; }
 .caveat { color: var(--muted); font-size: .92rem; }
+.reference { color: var(--muted); font-size: .85rem; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
 footer { color: var(--muted); font-size: .82rem; padding-bottom: 28px; }

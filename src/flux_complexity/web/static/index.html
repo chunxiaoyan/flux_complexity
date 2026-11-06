@@ -87,17 +87,27 @@
       ensemble le <strong>flux</strong>.</p>
     <ul>
       <li><strong>Taille</strong>&nbsp;: le nombre de liens qui traversent cet endroit.</li>
-      <li><strong>Poids</strong>&nbsp;: le plus grand nombre de ces liens qui ne partagent aucun mot. Un poids
-        élevé signifie que plusieurs constructions indépendantes sont imbriquées les unes dans les autres&nbsp;;
-        le lecteur doit alors garder plusieurs choses en mémoire en même temps.</li>
+      <li><strong>Poids</strong>&nbsp;: le plus grand nombre de liens <em>disjoints</em>, c'est-à-dire qui ne
+        partagent aucun mot. Des liens qui partagent un mot («&nbsp;en bouquet&nbsp;») peuvent être regroupés&nbsp;;
+        des liens disjoints, non&nbsp;: chacun correspond à une construction commencée puis mise en attente pendant
+        qu'une autre s'enchâsse à l'intérieur. Le lecteur doit alors garder ces éléments séparément en mémoire de
+        travail. Dans les corpus étudiés, un poids de 4 ou plus est très rare (moins de 0,5&nbsp;% des positions),
+        une limite qui pourrait être liée à la capacité de la mémoire de travail (environ 4 éléments selon
+        Cowan, 2001).</li>
     </ul>
     <p>Chaque phrase est affichée avec son arbre de dépendances&nbsp;: au-dessus de chaque mot, sa catégorie
       (NOUN = nom, VERB = verbe, DET = déterminant…)&nbsp;; chaque flèche part d'un mot et pointe vers le mot qui
       dépend de lui, avec le nom de la relation. Les cases colorées entre les mots donnent la valeur du flux.</p>
     <p>La couleur indique si la valeur est <strong>rare</strong> dans un corpus de référence de textes
       français (par défaut, le corpus écrit Sequoia). La ponctuation n'est pas prise en compte dans le calcul.</p>
+    <p class="caveat">Un poids élevé ne signifie pas toujours une phrase difficile&nbsp;: les longues
+      coordinations et les liens entre mots grammaticaux (déterminants, prépositions) augmentent le poids sans
+      forcément gêner la lecture.</p>
     <p class="caveat">L'analyse syntaxique est automatique (Stanza)&nbsp;: elle peut contenir des erreurs,
       surtout pour des phrases longues ou peu usuelles.</p>
+    <p class="reference">Méthode&nbsp;: Kahane, Yan &amp; Botalla (2017)&nbsp;; Yan (2021), <em>Complexité
+      syntaxique et flux de dépendance&nbsp;: études quantitatives dans les treebanks Universal
+      Dependencies</em>, thèse de doctorat, Université Paris Nanterre.</p>
   </section>
 </main>
 

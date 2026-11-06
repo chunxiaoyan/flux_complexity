@@ -175,3 +175,36 @@ def test_matches_cli_on_real_corpus(client, tmp_path):
     cli_rows = list(csv.reader(open(tmp_path / "p.csv", encoding="utf-8-sig")))
     api_rows = list(csv.reader(io.StringIO(client.get(f"/api/corpora/{cid}/export.csv").content.decode("utf-8-sig"))))
     assert cli_rows == api_rows
+
+
+def test_search_filters_and_matrix_shape(client):
+    cid = upload(client).json()["id"]
+    assert "nmod" in client.get(f"/api/corpora/{cid}").json()["deprels"]
+
+    def search(**params):
+        q = client.get(f"/api/corpora/{cid}/sentences", params=params)
+        assert q.status_code == 200, q.text
+        return [(s["sent_id"], s["positions"]) for s in q.json()["sentences"]]
+
+    # every returned sentence lists the positions that satisfy the conditions
+    assert search(min_weight=2) == [("a", [3, 4])]
+    assert search(min_size=3, max_size=3) == [("a", [3])]
+    assert search(max_weight=1) == [("a", [1, 2, 5]), ("b", [1, 2, 3])]
+    assert search() == [("a", []), ("b", [])]  # no position condition
+    # a relation without subtype also matches its subtypes; with a subtype, exactly
+    assert search(deprel="parataxis") == [("b", [2, 3])]  # pleut->reste spans pleut|je and je|reste
+    assert search(deprel="parataxis:insert") == [("b", [2, 3])]
+    assert search(deprel="parataxis:obj") == []
+    # text: case-insensitive, also for non-ASCII letters
+    assert [s for s, _ in search(text="SŒUR")] == ["a"]
+
+    # flux matrix of a at de|ma (position 3): rows chat, de; cols dort, sœur
+    #   (1,1) dort->chat  (1,2) chat->sœur  (2,2) sœur->de
+    assert search(matrix="1,1 1,2 2,2") == [("a", [3])]  # exact shape (legacy list_mat)
+    assert search(matrix="1,1 2,2") == []  # no flux is exactly two disjoint deps here
+    assert search(matrix="1,1 2,2", matrix_mode="contains") == [("a", [3, 4])]
+    assert search(matrix="1,1") == [("a", [1, 5]), ("b", [1, 2])]  # = positions of size 1
+    assert search(matrix="1,1 2,2", matrix_mode="contains", min_size=4) == [("a", [4])]
+
+    r = client.get(f"/api/corpora/{cid}/sentences", params={"matrix": "1;x"})
+    assert r.status_code == 422 and "Case de matrice invalide" in r.json()["detail"]

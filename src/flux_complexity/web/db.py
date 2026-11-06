@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import datetime as _dt
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
+from ..analysis import render_text, surface_tokens
 from ..core import (
     CorpusSummary,
     Sentence,
@@ -96,6 +97,8 @@ class Database:
         con = sqlite3.connect(self.path)
         con.row_factory = sqlite3.Row
         con.execute("PRAGMA foreign_keys = ON")
+        # SQLite's lower() only folds ASCII; this one also folds « É », « Œ »…
+        con.create_function("casefold", 1, lambda t: t.casefold() if t is not None else None, deterministic=True)
         try:
             yield con
             con.commit()
@@ -140,7 +143,7 @@ class Database:
         sid = con.execute(
             "INSERT INTO sentence (corpus_id, idx, sent_id, text, n_words, n_positions, max_size, mean_size,"
             " max_weight, mean_weight, conllu) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (corpus_id, idx, sent.sent_id, sent.text, s.n_words, s.n_positions, s.max_size, s.mean_size,
+            (corpus_id, idx, sent.sent_id, sent.text or render_text(surface_tokens(sent)[0]), s.n_words, s.n_positions, s.max_size, s.mean_size,
              s.max_weight, s.mean_weight, block),
         ).lastrowid  # fmt: skip
         orig = ps.new2orig
@@ -177,6 +180,15 @@ class Database:
                         (corpus_id,),
                     )
                 }
+            # relations that occur in at least one flux position, for the search form
+            d["deprels"] = [
+                r[0]
+                for r in con.execute(
+                    "SELECT DISTINCT d.deprel FROM flux_dep d JOIN flux f ON f.id=d.flux_id"
+                    " JOIN sentence s ON s.id=f.sentence_id WHERE s.corpus_id=? ORDER BY d.deprel",
+                    (corpus_id,),
+                )
+            ]
             return d
 
     def delete_corpus(self, corpus_id: int) -> bool:
@@ -186,37 +198,83 @@ class Database:
     def sentences(
         self,
         corpus_id: int,
+        *,
         min_weight: int | None = None,
+        max_weight: int | None = None,
         min_size: int | None = None,
+        max_size: int | None = None,
         deprel: str | None = None,
+        text: str | None = None,
+        matrix: Sequence[tuple[int, int]] | None = None,
+        matrix_mode: str = "exact",
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[int, list[dict]]:
-        """Sentences having at least one flux position matching all given conditions."""
+        """Sentences having at least one flux position matching all position conditions.
+
+        Position conditions (weight, size, deprel, matrix) must hold in the *same* flux
+        position; each returned sentence lists those positions in "positions".
+        - deprel without subtype ("acl") also matches its subtypes ("acl:relcl");
+          with a subtype it matches exactly.
+        - matrix: cells (row, col) of the flux matrix that must hold a dependency.
+          "exact": the matrix is exactly these cells (the legacy list_mat query);
+          "contains": these cells are filled, other cells may be too.
+        text is a case-insensitive substring of the sentence text.
+        """
+        if matrix_mode not in ("exact", "contains"):
+            raise ValueError(f"unknown matrix mode {matrix_mode!r}")
         where, args = ["s.corpus_id = ?"], [corpus_id]
+        if text:
+            where.append("instr(casefold(s.text), casefold(?)) > 0")
+            args.append(text)
         flux_cond, flux_args = [], []
-        if min_weight is not None:
-            flux_cond.append("f.weight >= ?")
-            flux_args.append(min_weight)
-        if min_size is not None:
-            flux_cond.append("f.size >= ?")
-            flux_args.append(min_size)
+        for expr, value in (("f.weight >= ?", min_weight), ("f.weight <= ?", max_weight),
+                            ("f.size >= ?", min_size), ("f.size <= ?", max_size)):  # fmt: skip
+            if value is not None:
+                flux_cond.append(expr)
+                flux_args.append(value)
         if deprel:
-            flux_cond.append("EXISTS (SELECT 1 FROM flux_dep d WHERE d.flux_id=f.id AND d.deprel=?)")
-            flux_args.append(deprel)
-        if flux_cond:
-            where.append(f"EXISTS (SELECT 1 FROM flux f WHERE f.sentence_id=s.id AND {' AND '.join(flux_cond)})")
-            args += flux_args
-        clause = " AND ".join(where)
+            if ":" in deprel:
+                flux_cond.append("EXISTS (SELECT 1 FROM flux_dep d WHERE d.flux_id=f.id AND d.deprel=?)")
+                flux_args.append(deprel)
+            else:
+                flux_cond.append(
+                    "EXISTS (SELECT 1 FROM flux_dep d WHERE d.flux_id=f.id"
+                    " AND (d.deprel=? OR substr(d.deprel, 1, length(?) + 1) = ? || ':'))"
+                )
+                flux_args += [deprel, deprel, deprel]
+        if matrix:
+            cells = sorted(set(matrix))
+            match = " OR ".join(["(d.row=? AND d.col=?)"] * len(cells))
+            flux_cond.append(f"(SELECT COUNT(*) FROM flux_dep d WHERE d.flux_id=f.id AND ({match})) = ?")
+            flux_args += [v for cell in cells for v in cell] + [len(cells)]
+            if matrix_mode == "exact":
+                flux_cond.append("f.size = ?")
+                flux_args.append(len(cells))
         cols = "s.id, s.idx, s.sent_id, s.text, s.n_words, s.n_positions, s.max_size, s.mean_size, " \
                "s.max_weight, s.mean_weight"  # fmt: skip
+        select_args: list = []
+        if flux_cond:
+            # INDEXED BY: without it SQLite may pick ix_flux_size for « f.size = ? » and scan
+            # every position of that size for each sentence (7 s instead of 0.3 s on Sequoia)
+            fc = " AND ".join(flux_cond)
+            where.append(f"EXISTS (SELECT 1 FROM flux f INDEXED BY ix_flux_sentence WHERE f.sentence_id=s.id AND {fc})")
+            args += flux_args
+            cols += f", (SELECT group_concat(f.position) FROM flux f INDEXED BY ix_flux_sentence WHERE f.sentence_id=s.id AND {fc}) AS positions"
+            select_args = flux_args
+        clause = " AND ".join(where)
         with self.connect() as con:
             total = con.execute(f"SELECT COUNT(*) FROM sentence s WHERE {clause}", args).fetchone()[0]
             rows = con.execute(
                 f"SELECT {cols} FROM sentence s WHERE {clause} ORDER BY s.idx LIMIT ? OFFSET ?",
-                [*args, limit, offset],
+                [*select_args, *args, limit, offset],
             )
-            return total, [dict(r) for r in rows]
+            out = []
+            for r in rows:
+                d = dict(r)
+                d["positions"] = sorted(int(p) for p in (d.get("positions") or "").split(",") if p)
+                out.append(d)
+            return total, out
 
     def sentence(self, sentence_id: int) -> dict | None:
         with self.connect() as con:

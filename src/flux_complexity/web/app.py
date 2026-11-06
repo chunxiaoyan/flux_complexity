@@ -80,6 +80,24 @@ def _check_thresholds(th: dict | None) -> dict | None:
     return th
 
 
+MAX_MATRIX_CELLS = 64
+
+
+def _parse_matrix(spec: str | None) -> list[tuple[int, int]] | None:
+    """« 1,1 2,2 3,3 » -> [(1, 1), (2, 2), (3, 3)] (row = left word, col = right word)."""
+    if spec is None or not spec.strip():
+        return None
+    cells = []
+    for item in spec.replace(";", " ").split():
+        m = re.fullmatch(r"(\d+),(\d+)", item)
+        if not m or int(m[1]) < 1 or int(m[2]) < 1:
+            raise HTTPException(422, f"Case de matrice invalide : « {item} » (format attendu : ligne,colonne).")
+        cells.append((int(m[1]), int(m[2])))
+    if len(cells) > MAX_MATRIX_CELLS:
+        raise HTTPException(422, f"Trop de cases dans la matrice ({MAX_MATRIX_CELLS} au maximum).")
+    return cells
+
+
 async def _read_upload(file: UploadFile) -> str:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -203,16 +221,25 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
     @app.get("/api/corpora/{corpus_id}/sentences", tags=["corpus"])
     def search_sentences(
         corpus_id: int,
-        min_weight: int | None = Query(None, ge=1, description="Au moins une position de poids ≥ cette valeur"),
-        min_size: int | None = Query(None, ge=1, description="Au moins une position de taille ≥ cette valeur"),
-        deprel: str | None = Query(None, description="Relation présente dans cette même position, ex. nmod"),
+        min_weight: int | None = Query(None, ge=1, description="Poids de la position ≥ cette valeur"),
+        max_weight: int | None = Query(None, ge=1, description="Poids de la position ≤ cette valeur"),
+        min_size: int | None = Query(None, ge=1, description="Taille de la position ≥ cette valeur"),
+        max_size: int | None = Query(None, ge=1, description="Taille de la position ≤ cette valeur"),
+        deprel: str | None = Query(None, description="Relation dans la même position, ex. acl (inclut acl:relcl)"),
+        text: str | None = Query(None, max_length=200, description="La phrase contient ce texte"),
+        matrix: str | None = Query(None, description="Cases de la matrice de flux « ligne,colonne », ex. « 1,1 2,2 3,3 »"),
+        matrix_mode: Literal["exact", "contains"] = Query("exact", description="exact : la matrice est exactement ces cases ; contains : au moins ces cases"),
         limit: int = Query(50, ge=1, le=500),
         offset: int = Query(0, ge=0),
     ):
-        """Recherche de phrases. Les conditions portent sur une même position de flux."""
+        """Recherche de phrases. Les conditions sur le flux portent sur une même position."""
         if db.corpus(corpus_id) is None:
             raise HTTPException(404, "Corpus introuvable.")
-        total, rows = db.sentences(corpus_id, min_weight, min_size, deprel, limit, offset)
+        total, rows = db.sentences(
+            corpus_id, min_weight=min_weight, max_weight=max_weight, min_size=min_size, max_size=max_size,
+            deprel=(deprel or "").strip() or None, text=(text or "").strip() or None,
+            matrix=_parse_matrix(matrix), matrix_mode=matrix_mode, limit=limit, offset=offset,
+        )  # fmt: skip
         return {"total": total, "limit": limit, "offset": offset, "sentences": rows}
 
     @app.get("/api/sentences/{sentence_id}", tags=["corpus"])
@@ -267,5 +294,10 @@ def create_app(db_path: str | Path, parser=None, load_parser: bool = True) -> Fa
     def beginner_page():
         """Page « Analyser un texte » (stage 5)."""
         return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/experiences", include_in_schema=False)
+    def experiment_page():
+        """Page « Corpus et expériences » (stage 6)."""
+        return FileResponse(STATIC_DIR / "experiences.html")
 
     return app

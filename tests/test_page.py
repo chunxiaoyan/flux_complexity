@@ -40,8 +40,19 @@ def test_page_has_no_external_resources():
 
 
 def test_page_never_injects_html():
-    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
-    assert "innerHTML" not in js and "insertAdjacentHTML" not in js
+    for f in STATIC_DIR.glob("*.js"):
+        js = f.read_text(encoding="utf-8")
+        assert "innerHTML" not in js and "insertAdjacentHTML" not in js, f.name
+
+
+def test_experiment_page_served(client):
+    r = client.get("/experiences")
+    assert r.status_code == 200 and '<html lang="fr">' in r.text
+    assert "Rechercher des phrases" in r.text and "/static/tree.js" in r.text
+    for asset in ("/static/tree.js", "/static/experiences.js"):
+        assert client.get(asset).status_code == 200
+    # both pages link to each other
+    assert 'href="/experiences"' in client.get("/").text and 'href="/"' in r.text
 
 
 def test_js_default_thresholds_match_python():

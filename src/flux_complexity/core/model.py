@@ -23,6 +23,7 @@ class Word:
     upos: str
     head: int | None  # None when HEAD is "_"
     deprel: str
+    space_after: bool = True  # False when MISC has SpaceAfter=No (display only)
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class MultiWordToken:
     first: int
     last: int
     form: str
+    space_after: bool = True
 
 
 @dataclass

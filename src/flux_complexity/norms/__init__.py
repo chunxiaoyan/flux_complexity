@@ -27,7 +27,8 @@ DEFAULT_THRESHOLDS: dict[str, tuple[float, ...]] = {
     "weight": (0.40, 0.05, 0.01),
     "size": (0.10, 0.05, 0.02),
 }
-DEFAULT_UD_NORM = "UD_French-Sequoia"  # beginner page default (spec §9)
+DEFAULT_NORMS = {"UD": "UD_French-Sequoia", "SUD": "SUD_French-Sequoia"}  # per scheme (spec §9)
+DEFAULT_UD_NORM = DEFAULT_NORMS["UD"]  # beginner page default
 
 
 def _dist_to_json(d: Distribution) -> dict:

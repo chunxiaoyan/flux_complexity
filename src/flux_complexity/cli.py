@@ -123,18 +123,52 @@ def main(argv: list[str] | None = None) -> int:
     nsub.add_parser("list", help="list built-in norms")
     show = nsub.add_parser("show", help="show a norm with its colour levels")
     show.add_argument("norm", help="built-in norm name or path to a norm JSON file")
+    a = sub.add_parser("analyze", help="analyse raw French text (Stanza) or a .conllu file against a norm")
+    src = a.add_mutually_exclusive_group(required=True)
+    src.add_argument("text", nargs="?", help="raw text to parse (UD)")
+    src.add_argument("--file", type=Path, help="a .conllu file instead of raw text")
+    a.add_argument("--scheme", choices=["UD", "SUD"], default="UD", help="scheme of --file (default UD)")
+    a.add_argument("--norm", help="norm name or JSON path (default: UD/SUD Sequoia by scheme)")
+    a.add_argument("--metric", choices=["weight", "size"], default="weight", help="colour by (default weight)")
+    a.add_argument("--json", action="store_true", help="print the full result as JSON")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     if args.command == "norms":
         return _norms_command(args)
+    if args.command == "analyze":
+        return _analyze_command(args)
 
     out = args.output or args.file.with_suffix(".positions.csv")
     summary = compute_file(args.file, args.scheme, out, args.sentences, args.warnings, args.parataxis)
     pipeline = " -> ".join(t.name for t in build_pipeline(args.parataxis))
     print(format_summary(summary, pipeline))
     print(f"positions written to {out}")
+    return 0
+
+
+def _analyze_command(args: argparse.Namespace) -> int:
+    import json
+
+    from .analysis import analyze_conllu, analyze_text
+    from .norms import Norm
+    from .render import render
+
+    norm = None
+    if args.norm:
+        norm = Norm.load(args.norm) if args.norm.endswith(".json") else Norm.builtin(args.norm)
+    if args.file:
+        result = analyze_conllu(args.file.read_text(encoding="utf-8"), args.scheme, norm)
+    else:
+        from .parse import ParserUnavailable, StanzaParser
+
+        try:
+            result = analyze_text(args.text, StanzaParser(), norm)
+        except ParserUnavailable as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+    print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2) if args.json else render(result, args.metric))
     return 0
 
 

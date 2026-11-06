@@ -16,6 +16,11 @@ def _check_scheme(scheme: str) -> str:
     return scheme
 
 
+def _space_after(tok: conllu.Token) -> bool:
+    misc = tok.get("misc") or {}
+    return misc.get("SpaceAfter") != "No"
+
+
 def _to_sentence(tokenlist: conllu.TokenList, index: int, scheme: str) -> Sentence:
     words: list[Word] = []
     mwts: list[MultiWordToken] = []
@@ -36,10 +41,13 @@ def _to_sentence(tokenlist: conllu.TokenList, index: int, scheme: str) -> Senten
                     upos=tok["upos"] or "",
                     head=head if isinstance(head, int) else None,
                     deprel=tok["deprel"] or "",
+                    space_after=_space_after(tok),
                 )
             )
         elif isinstance(tid, tuple) and len(tid) == 3 and tid[1] == "-":
-            mwts.append(MultiWordToken(first=tid[0], last=tid[2], form=tok["form"]))
+            mwts.append(
+                MultiWordToken(first=tid[0], last=tid[2], form=tok["form"], space_after=_space_after(tok))
+            )
         # empty nodes (8.1) are ignored
     meta = tokenlist.metadata
     return Sentence(

@@ -13,6 +13,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+parser = [
+    "stanza>=1.9",
+]
 dev = [
     "pytest>=8",
     "networkx>=3",

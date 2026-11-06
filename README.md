@@ -167,5 +167,4 @@ uv pip install -e ".[web,parser,dev]"
 
 - `src/flux_complexity/core/` : lecture du CoNLL-U, prétraitement, calcul du flux (aucune dépendance web).
 - `src/flux_complexity/web/` : API FastAPI, base SQLite, pages (JavaScript sans compilation).
-- `docs/review_stage*.md` : notes de revue de chaque étape de développement (en chinois).
 - `scripts/compare_legacy.py` : comparaison avec les anciens scripts et les fichiers Excel de la thèse.

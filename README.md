@@ -137,7 +137,7 @@ exploitation pour l'adaptation d'analyseur par pont lexical*, TALN 2012.
 2.0), avec ses modèles « combined » pour le français. Le texte saisi est toujours analysé en UD et comparé à
 une norme UD.
 
-**Licence de flux_complexity :** à préciser.
+**Licence de flux_complexity :** MIT (voir [LICENSE](LICENSE)). Cette licence couvre le code de l'outil ; les normes gardent la licence des treebanks dont elles sont issues (tableau ci-dessus).
 
 ## Questions fréquentes
 

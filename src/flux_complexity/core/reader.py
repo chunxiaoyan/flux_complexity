@@ -59,10 +59,22 @@ def _to_sentence(tokenlist: conllu.TokenList, index: int, scheme: str) -> Senten
     )
 
 
+def _safe(tokenlist: conllu.TokenList, index: int, scheme: str) -> Sentence:
+    try:
+        return _to_sentence(tokenlist, index, scheme)
+    except KeyError as e:  # line with missing columns
+        sid = tokenlist.metadata.get("sent_id", index)
+        raise ValueError(f"sentence {sid}: malformed line (missing column {e})") from None
+
+
 def parse_conllu(text: str, scheme: str) -> list[Sentence]:
     """Parse a CoNLL-U string. Sentences without sent_id get their 1-based index."""
     _check_scheme(scheme)
-    return [_to_sentence(tl, i, scheme) for i, tl in enumerate(conllu.parse(text), start=1)]
+    try:
+        tokenlists = conllu.parse(text)
+    except conllu.exceptions.ParseException as e:
+        raise ValueError(str(e)) from None
+    return [_safe(tl, i, scheme) for i, tl in enumerate(tokenlists, start=1)]
 
 
 def read_conllu(path: str | Path, scheme: str) -> Iterator[Sentence]:
@@ -70,4 +82,4 @@ def read_conllu(path: str | Path, scheme: str) -> Iterator[Sentence]:
     _check_scheme(scheme)
     with open(path, encoding="utf-8") as fh:
         for i, tl in enumerate(conllu.parse_incr(fh), start=1):
-            yield _to_sentence(tl, i, scheme)
+            yield _safe(tl, i, scheme)

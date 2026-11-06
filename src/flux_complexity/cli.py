@@ -23,6 +23,8 @@ from .core import (
     summarize_sentence,
 )
 
+DEFAULT_DB = Path.home() / ".flux_complexity" / "data.sqlite3"
+
 POSITION_COLUMNS = [
     "sent_id", "position", "left_id", "left_form", "right_id", "right_form",
     "size", "weight", "deps",
@@ -131,6 +133,10 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--norm", help="norm name or JSON path (default: UD/SUD Sequoia by scheme)")
     a.add_argument("--metric", choices=["weight", "size"], default="weight", help="colour by (default weight)")
     a.add_argument("--json", action="store_true", help="print the full result as JSON")
+    w = sub.add_parser("serve", help="start the local web server (API docs at /docs)")
+    w.add_argument("--port", type=int, default=8000)
+    w.add_argument("--db", type=Path, default=DEFAULT_DB, help=f"SQLite database (default {DEFAULT_DB})")
+    w.add_argument("--no-parser", action="store_true", help="do not load Stanza (CoNLL-U only)")
     args = parser.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -139,12 +145,29 @@ def main(argv: list[str] | None = None) -> int:
         return _norms_command(args)
     if args.command == "analyze":
         return _analyze_command(args)
+    if args.command == "serve":
+        return _serve_command(args)
 
     out = args.output or args.file.with_suffix(".positions.csv")
     summary = compute_file(args.file, args.scheme, out, args.sentences, args.warnings, args.parataxis)
     pipeline = " -> ".join(t.name for t in build_pipeline(args.parataxis))
     print(format_summary(summary, pipeline))
     print(f"positions written to {out}")
+    return 0
+
+
+def _serve_command(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+
+        from .web.app import create_app
+    except ImportError:
+        print("error: install the web extra: pip install 'flux_complexity[web]'", file=sys.stderr)
+        return 2
+    app = create_app(args.db, load_parser=not args.no_parser)
+    print(f"database: {args.db}")
+    print(f"open http://127.0.0.1:{args.port}/docs  (Ctrl+C to stop)")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")  # local only, no auth
     return 0
 
 

@@ -155,11 +155,17 @@ table.matrix-grid td { border: 1px solid var(--line); padding: 0; text-align: ce
 table.matrix-grid button.cell { background: #fff; color: var(--muted); border: none; border-radius: 0; width: 52px; height: 34px;
   padding: 0; font-weight: 400; font-size: .8rem; }
 table.matrix-grid button.cell[aria-pressed=true] { background: var(--accent); color: #fff; font-weight: 600; }
-table.matrix-result td { min-width: 70px; height: 34px; padding: 3px 8px; }
+table.matrix-result td { min-width: 70px; height: 34px; padding: 3px 8px; white-space: nowrap; }
 table.matrix-result td.filled { background: #eef3ff; }
 table.matrix-result .rel { font-weight: 600; color: var(--ink); }
-.detail-grid { display: grid; grid-template-columns: minmax(260px, 1fr) 2fr; gap: 18px; margin-top: 10px; }
-@media (max-width: 760px) { .detail-grid { grid-template-columns: 1fr; } }
+.detail-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 18px; margin-top: 10px; align-items: start; }
+.positions-scroll { max-height: 380px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+.positions-scroll thead th { position: sticky; top: 0; z-index: 1; }
+@media (max-width: 760px) {
+  .detail-grid { grid-template-columns: minmax(0, 1fr); }
+  table.data th, table.data td { padding: 4px 5px; }
+  .card { padding: 12px; }
+}
 .matrix-view { overflow-x: auto; }
 svg.tree .gap.marked { stroke: var(--ink); stroke-width: 1.5; }
 svg.tree .gap.selected { stroke: var(--arc); stroke-width: 3; }

@@ -328,7 +328,9 @@ function selectPosition(position) {
   state.position = position;
   const { s, svg: svgEl } = state.detail;
   for (const tr of document.querySelectorAll("#d-positions tbody tr")) {
-    tr.classList.toggle("selected", Number(tr.dataset.position) === position);
+    const on = Number(tr.dataset.position) === position;
+    tr.classList.toggle("selected", on);
+    if (on) tr.scrollIntoView({ block: "nearest" }); // the table scrolls inside its own box
   }
   for (const [pos, g] of svgEl.gapEls) g.classList.toggle("selected", pos === position);
   const box = $("#d-matrix");
